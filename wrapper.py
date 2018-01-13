@@ -42,7 +42,7 @@ class Wrapper():
                     datas = [data.cuda() for data in datas]
                 self.optimizer.zero_grad()
                 loss = self.model(*datas)
-                loss.backward(retain_graph=True)
+                loss.backward()
                 self.optimizer.step()
                 total += loss.data[0]
             msg = 'Train Epoch: {:1d} \tLoss: {:.6e}'

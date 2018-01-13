@@ -3,7 +3,6 @@ import torch.autograd
 import torch.nn.functional as F
 from torch.autograd import Variable
 from torch import nn
-import numpy as np
 
 from poincare import transform
 from poincare import distance
@@ -12,7 +11,8 @@ from poincare import distance_batch
 
 def reparametrize(mu, logvar):
     std = logvar.mul(0.5).exp_()
-    eps = torch.cuda.FloatTensor(std.size()).normal_()
+    typ = type(mu.data)
+    eps = typ(std.size()).normal_()
     eps = Variable(eps)
     z = eps.mul(std).add_(mu)
     kld = mu.pow(2).add_(logvar.exp()).mul_(-1).add_(1).add_(logvar)
@@ -29,7 +29,7 @@ class VTSNE(nn.Module):
         self.n_points = n_points
         self.n_dim = n_dim
         self.logits_lv.weight.data.add_(5)
-    
+
     @property
     def logits(self):
         return self.logits_mu
@@ -68,10 +68,29 @@ class VTSNE(nn.Module):
 
     def forward_poincare(self, pij, i, j):
         # Get  for all points
+        # we'll compute the kl divergence(pij, qij)
+        # qij = probability of picking distance(i, j)
+        # given all other distances involving i
         x, loss_kldrp = self.sample_logits()
         p = transform(transform(x))
-        # 
-        return loss
+        xi, _ = self.sample_logits(i)
+        pi = transform(transform(xi))
+        # Measure distance between every point i and every point in datatset
+        # shape is (batchsize, n_data)
+        dik = distance_batch(pi, p)
+        # (batchsize, n_data)
+        log_qik = F.log_softmax(dik, 1)
+        # (batchsize, )
+        row = Variable(torch.arange(0, len(j)).long())
+        log_qij = log_qik[row, j]
+        kld = pij * (torch.log(pij) - log_qij)
+        loss = kld.sum()
+        n_obs = (self.n_points * self.n_points)
+        frac = len(i) / n_obs
+        return loss + loss_kldrp * frac
+
+    def forward(self, *args):
+        return self.forward_poincare(*args)
 
     def __call__(self, *args):
         return self.forward(*args)
