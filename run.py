@@ -25,11 +25,11 @@ def preprocess(perplexity=30, metric='euclidean'):
     pij = manifold.t_sne._joint_probabilities(distances2, perplexity, False)
     # Convert to n x n prob array
     pij = squareform(pij)
-    return n_points, pij, y
+    return n_points, pij, y, pos
 
-
+cuda = True
 draw_ellipse = True
-n_points, pij2d, y = preprocess()
+n_points, pij2d, y, pos = preprocess()
 i, j = np.indices(pij2d.shape)
 i = i.ravel()
 j = j.ravel()
@@ -40,10 +40,11 @@ i, j, pij = i[idx], j[idx], pij[idx]
 
 n_topics = 2
 n_dim = 2
+batchsize = 4096 * 4
 print(n_points, n_dim, n_topics)
 
 model = VTSNE(n_points, n_topics, n_dim)
-wrap = Wrapper(model, batchsize=4096, epochs=1, cuda=False)
+wrap = Wrapper(model, batchsize=batchsize, epochs=1, cuda=True)
 for itr in range(500):
     wrap.fit(pij, i, j)
 
@@ -69,4 +70,10 @@ for itr in range(500):
         plt.axis('off')
         plt.savefig('scatter_{:03d}.png'.format(itr), bbox_inches='tight')
         plt.close(f)
+    model = model.cpu()
+    np.savez("model", mu=model.logits_mu.weight.data.numpy(),
+             lv=model.logits_lv.weight.data.numpy(),
+             y=y, img=pos)
+    if cuda:
+        model = model.cuda()
 

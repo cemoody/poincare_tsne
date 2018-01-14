@@ -67,6 +67,9 @@ class VTSNE(nn.Module):
         return loss
 
     def forward_poincare(self, pij, i, j):
+        row = Variable(torch.arange(0, len(j)).long())
+        if self.cuda:
+            row = row.cuda()
         # Get  for all points
         # we'll compute the kl divergence(pij, qij)
         # qij = probability of picking distance(i, j)
@@ -78,15 +81,17 @@ class VTSNE(nn.Module):
         # Measure distance between every point i and every point in datatset
         # shape is (batchsize, n_data)
         dik = distance_batch(pi, p)
+        # set all dii entries to super high distance, so low prob of picking
+        dik[row, i] += 1e8
         # (batchsize, n_data)
-        log_qik = F.log_softmax(dik, 1)
+        log_qik = F.log_softmax(-dik, 1)
         # (batchsize, )
-        row = Variable(torch.arange(0, len(j)).long())
         log_qij = log_qik[row, j]
         kld = pij * (torch.log(pij) - log_qij)
         loss = kld.sum()
         n_obs = (self.n_points * self.n_points)
         frac = len(i) / n_obs
+        frac = 1e-6
         return loss + loss_kldrp * frac
 
     def forward(self, *args):
