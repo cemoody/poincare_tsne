@@ -27,7 +27,7 @@ def preprocess(perplexity=30, metric='euclidean'):
     pij = squareform(pij)
     return n_points, pij, y, pos
 
-cuda = True
+cuda = False
 draw_ellipse = True
 n_points, pij2d, y, pos = preprocess()
 i, j = np.indices(pij2d.shape)
@@ -44,7 +44,7 @@ batchsize = 4096 * 4
 print(n_points, n_dim, n_topics)
 
 model = VTSNE(n_points, n_topics, n_dim)
-wrap = Wrapper(model, batchsize=batchsize, epochs=1, cuda=True)
+wrap = Wrapper(model, batchsize=batchsize, epochs=1, cuda=cuda)
 for itr in range(500):
     wrap.fit(pij, i, j)
 

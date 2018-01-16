@@ -21,7 +21,7 @@ def reparametrize(mu, logvar):
 
 
 class VTSNE(nn.Module):
-    def __init__(self, n_points, n_topics, n_dim):
+    def __init__(self, n_points, n_topics, n_dim, parallel=True):
         super(VTSNE, self).__init__()
         # Logit of datapoint-to-topic weight
         self.logits_mu = nn.Embedding(n_points, n_topics)
@@ -29,6 +29,7 @@ class VTSNE(nn.Module):
         self.n_points = n_points
         self.n_dim = n_dim
         self.logits_lv.weight.data.add_(5)
+        self.parallel = parallel
 
     @property
     def logits(self):
@@ -87,11 +88,12 @@ class VTSNE(nn.Module):
         log_qik = F.log_softmax(-dik, 1)
         # (batchsize, )
         log_qij = log_qik[row, j]
-        kld = pij * (torch.log(pij) - log_qij)
+        kld = pij * (torch.log(pij + 1e-39) - log_qij)
         loss = kld.sum()
         n_obs = (self.n_points * self.n_points)
         frac = len(i) / n_obs
-        frac = 1e-6
+        frac = 1e-9
+        assert loss.data[0] == loss.data[0]
         return loss + loss_kldrp * frac
 
     def forward(self, *args):

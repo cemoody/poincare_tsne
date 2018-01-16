@@ -1,4 +1,6 @@
 import random
+import time
+from tqdm import tqdm
 
 import torch
 import torch.optim as optim
@@ -36,15 +38,19 @@ class Wrapper():
             self.model.cuda()
         for epoch in range(self.epochs):
             total = 0.0
-            for itr, datas in enumerate(chunks(self.batchsize, *args)):
+            t0 = time.time()
+            for itr, datas in tqdm(enumerate(chunks(self.batchsize, *args))):
                 datas = [Variable(torch.from_numpy(data)) for data in datas]
                 if self.cuda:
                     datas = [data.cuda() for data in datas]
                 self.optimizer.zero_grad()
-                loss = self.model(*datas)
+                losses = self.model(*datas)
+                loss = sum(losses)
                 loss.backward()
                 self.optimizer.step()
                 total += loss.data[0]
-            msg = 'Train Epoch: {:1d} \tLoss: {:.6e}'
-            msg = msg.format(epoch, total / (len(args[0]) * 1.0))
+                assert loss.data[0] == loss.data[0]
+            t1 = time.time()
+            msg = 'Train Epoch: {:1d} \tLoss: {:.6e} \tTime: {:0.2e}'
+            msg = msg.format(epoch, total / (len(args[0]) * 1.0), t1 - t0)
             print(msg)
