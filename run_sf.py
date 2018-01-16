@@ -10,11 +10,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import os
-
+import os.path
+import glob
 import torch
 from torch import nn
 from wrapper import Wrapper
 # from tsne import TSNE
+from poincare import transform
 from vtsne import VTSNE
 
 from sklearn.externals.joblib import Memory
@@ -28,9 +30,14 @@ mem = Memory('cache')
 def preprocess(perplexity=30, metric='euclidean', limit=6000):
     """ Compute pairiwse probabilities for MNIST pixels.
     """
+    fns = glob.glob("/data/svid/*")
+    svids = [fn.split('/')[-1].split('_')[1].split('.')[0] for fn in fns]
+    svids = set(int(s) for s in svids)
     df = (pd.read_pickle("/data/svid_vgg.pd")
-            .drop_duplicates('style_variant_id')
-            .head(limit))
+            .drop_duplicates('style_variant_id'))
+    df = df[df.style_variant_id.isin(svids)].head(limit)
+    url = df.qinfra_url
+    svid = df.style_variant_id
     X = df.values[:, 2:].astype('float32')
     X = np.ascontiguousarray(X)
     digits = datasets.load_digits(n_class=6)
@@ -47,7 +54,11 @@ def preprocess(perplexity=30, metric='euclidean', limit=6000):
     pij = pij.astype('float32')
     i = i.astype('int64')
     j = j.astype('int64')
-    return n_points, pij, None, None, i, j
+    # Remove self-indices
+    idx = i != j
+    idx &= pij > 1e-16
+    i, j, pij = i[idx], j[idx], pij[idx]
+    return n_points, pij, None, None, i, j, url, svid
 
 
 @mem.cache
@@ -116,22 +127,25 @@ cuda = True
 if os.getenv('GPU', False):
      torch.cuda.set_device(int(os.getenv('GPU', '1')))
 draw_ellipse = False
-n_points, pij, y, pos, i, j = preprocess()
+n_points, pij, y, pos, i, j, url, svid = preprocess(limit=3000)
 # n_points, pij, y, pos, i, j = preprocess_inexact_nmslib()
 
 n_topics = 2
 n_dim = 2
-batchsize = 4096 * 16
+batchsize = 4096 * 2
 print(n_points, n_dim, n_topics, len(pij))
 
-model = VTSNE(n_points, n_topics, n_dim)
+par = VTSNE(n_points, n_topics, n_dim)
+if os.path.exists("model.pt"):
+    par.load_state_dict((torch.load('model.pt')))
 if cuda:
-    model = nn.DataParallel(model)
-wrap = Wrapper(model, batchsize=batchsize, epochs=1, cuda=cuda)
+    par = nn.DataParallel(par)
+wrap = Wrapper(par, batchsize=batchsize, epochs=1, cuda=cuda)
 for itr in range(500):
     wrap.fit(pij, i, j)
 
     # Visualize the results
+    model = par.module
     embed = model.logits.weight.cpu().data.numpy()
     f = plt.figure()
     if not draw_ellipse:
@@ -154,9 +168,11 @@ for itr in range(500):
         plt.savefig('scatter_{:03d}.png'.format(itr), bbox_inches='tight')
         plt.close(f)
     model = model.cpu()
+    p = transform(transform(model.logits_mu.weight)).data.numpy()
     np.savez("model", mu=model.logits_mu.weight.data.numpy(),
-             lv=model.logits_lv.weight.data.numpy(),
-             y=y, img=pos)
+             lv=model.logits_lv.weight.data.numpy(), p=p,
+             y=y, img=pos, url=url, svid=svid)
+    torch.save(model.state_dict(), 'model.pt')
     if cuda:
         model = model.cuda()
 

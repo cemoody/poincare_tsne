@@ -7,12 +7,6 @@ import pandas as pd
 import torch.nn.functional as F
 import torch
 
-def norm(x):
-    l2x = l2(x)
-    sqrt = torch.sqrt(l2x)
-    assert (sqrt.data != sqrt.data).sum() == 0
-    return sqrt
-
 
 def l2(x):
     return dot(x, x)
@@ -28,28 +22,6 @@ def transform(theta, eps=1e-5):
     ret = theta / (div + eps)
     return ret
 
-def distance_batch(umat, vmat, eps=1e-5):
-    u = umat.unsqueeze(1)
-    v = vmat.unsqueeze(0)
-    uvdiff = (u - v + eps)
-    uvdot = (u * v).sum(dim=-1)
-    diff = norm(uvdiff)
-    l2u, l2v = l2(u), l2(v)
-    alpha = torch.sqrt(1 - l2u + eps)
-    beta = torch.sqrt(1 - l2v + eps)
-    root = l2u * l2v - 2 * uvdot + 1 + eps
-    num = diff + torch.sqrt(root)
-    div = alpha * beta
-    ret = 2 * torch.log(num / div)
-    return ret
-
-def radius_diff_batch(umat, vmat):
-    u = umat.unsqueeze(1)
-    v = vmat.unsqueeze(0)
-    nu = norm(u)
-    nv = norm(v)
-    return nu - nv
-
 
 def cart2pol(x, y):
     rho = np.sqrt(x**2 + y**2)
@@ -58,17 +30,21 @@ def cart2pol(x, y):
 
 mu = np.load("./model.npz")['mu']
 lv = np.load("./model.npz")['lv']
-y = np.load('input.npz')['y']
-img = np.load('input.npz')['pos']
-
+url = np.load('model.npz')['url']
+svid= np.load('model.npz')['svid']
+loc = ['/data/svid/svid_{:d}.jpg'.format(s) for s in svid]
 mu = Variable(torch.from_numpy(mu))
 lv = Variable(torch.from_numpy(lv))
+pmu = transform(mu)
+pmu = pmu.data.numpy()
 
 rho, phi = cart2pol(pmu[:, 0], pmu[:, 1])
-eta = np.log(1 - rho)
-idx = (phi < -1.0) & (phi > -0.4)
 
-full = pd.DataFrame(dict(rho=rho, phi=phi, x=pmu[:, 0], y=pmu[:, 1], label=y))
-full['eta'] = np.log(1 - full.rho)
+full = pd.DataFrame(dict(rho=rho, phi=phi, x=pmu[:, 0], y=pmu[:, 1],
+                         url=url, loc=loc))
+full['eta'] = np.log(full.rho.max() - full.rho + 1e-12)
 full['radius_zscore'] = (full.rho.mean() - full.rho)/full.rho.std()
-full['radius_zscore_clipped'] = np.clip(df.radius_zscore, -4, 4)
+full['radius_zscore_clipped'] = np.clip(full.radius_zscore, -4, 4)
+lim = full[full.eta > -15]
+lim[['eta', 'phi', 'loc']].to_csv('polar.csv', index=False, header=False)
+

@@ -45,7 +45,7 @@ class VTSNE(nn.Module):
     def forward_student_poincare(self, pij, i, j):
         # Get  for all points
         x, loss_kldrp = self.sample_logits()
-        p = transform(transform(x))
+        p = transform(x)
         # Compute partition function
         dkl = distance_batch(p, p)
         n_diagonal = dkl.size()[0]
@@ -56,8 +56,8 @@ class VTSNE(nn.Module):
         # Compute the numerator
         xi, _ = self.sample_logits(i)
         xj, _ = self.sample_logits(j)
-        pi = transform(transform(xi))
-        pj = transform(transform(xj))
+        pi = transform(xi)
+        pj = transform(xj)
         dij = distance(pi, pj)
         num = (1. + dij**2.0).pow(-1.0).squeeze()
         qij = num / part.expand_as(num)
