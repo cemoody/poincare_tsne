@@ -19,6 +19,7 @@ from wrapper import Wrapper
 from poincare import transform
 from vtsne import VTSNE
 
+from sklearn.decomposition import PCA
 from sklearn.externals.joblib import Memory
 from sklearn.neighbors import NearestNeighbors
 
@@ -40,6 +41,8 @@ def preprocess(perplexity=30, metric='euclidean', limit=6000):
     svid = df.style_variant_id
     X = df.values[:, 2:].astype('float32')
     X = np.ascontiguousarray(X)
+    pca = PCA(n_components=600)
+    X = pca.fit_transform(X)
     digits = datasets.load_digits(n_class=6)
     n_points = X.shape[0]
     distances2 = pairwise_distances(X, metric=metric, squared=True)
@@ -69,6 +72,8 @@ def preprocess_inexact_nmslib(perplexity=30, limit=6000):
             .head(limit))
     X = df.values[:, 2:].astype('float32')
     X = np.ascontiguousarray(X)
+    pca = PCA(n_components=600)
+    X = pca.fit_transform(X)
     n_samples = X.shape[0]
     # Cpmpute the number of nearest neighbors to find.
     # LvdM uses 3 * perplexity as the number of neighbors.
