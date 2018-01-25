@@ -77,6 +77,7 @@ def radius_diff_batch(umat, vmat):
     return nu - nv
 
 mu = np.load("./model.npz")['mu']
+rawmu = np.load("./model.npz")['mu']
 lv = np.load("./model.npz")['lv']
 url = np.load('model.npz')['url']
 svid= np.load('model.npz')['svid']
@@ -92,7 +93,7 @@ pmu = pmu.data.numpy()
 rho, phi = cart2pol(pmu[:, 0], pmu[:, 1])
 
 full = pd.DataFrame(dict(rho=rho, phi=phi, x=pmu[:, 0], y=pmu[:, 1],
-                         url=url, loc=loc))
+    url=url, loc=loc, rawx=rawmu[:, 0], rawy=rawmu[:, 1]))
 full['eta'] = np.log(full.rho.max() - full.rho + 1e-12)
 full['radius_zscore'] = (full.rho.mean() - full.rho)/full.rho.std()
 full['radius_zscore_clipped'] = np.clip(full.radius_zscore, -4, 4)
@@ -119,6 +120,7 @@ full[['x', 'y', 'loc']].to_csv('xy.csv', index=False, header=False)
 full[['sqpercentile_x', 'sqpercentile_y', 'loc']].to_csv('sqpercentile_xy.csv', index=False, header=False)
 full[['percentile_x', 'percentile_y', 'loc']].to_csv('percentile_xy.csv', index=False, header=False)
 full[['percentile_xp4', 'percentile_yp4', 'loc']].to_csv('percentile_xyp4.csv', index=False, header=False)
+full[['rawx', 'rawy', 'loc']].to_csv('rawxy.csv', index=False, header=False)
 
 xs = []
 ys = []
